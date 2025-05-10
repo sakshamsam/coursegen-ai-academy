@@ -73,38 +73,42 @@ const Dashboard = () => {
 
         {courses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses.map((course) => (
-              <Card key={course.id} className="bg-white overflow-hidden hover:shadow-md transition-shadow">
-                <CardHeader className="bg-gradient-to-r from-coursegen-blue to-coursegen-purple text-white">
-                  <CardTitle className="truncate">{course.title}</CardTitle>
-                  <CardDescription className="text-gray-100">
-                    Created on {course.createdAt}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <p className="text-gray-700 line-clamp-2 mb-4">{course.description}</p>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Progress</span>
-                      <span>{Math.round((course.completedChapters / course.chapters) * 100)}%</span>
+            {courses.map((course) => {
+              const progressPercentage = Math.round((course.completedChapters / course.chapters) * 100);
+              
+              return (
+                <Card key={course.id} className="bg-white overflow-hidden hover:shadow-md transition-shadow">
+                  <CardHeader className="bg-gradient-to-r from-coursegen-blue to-coursegen-purple text-white">
+                    <CardTitle className="truncate">{course.title}</CardTitle>
+                    <CardDescription className="text-gray-100">
+                      Created on {course.createdAt}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <p className="text-gray-700 line-clamp-2 mb-4">{course.description}</p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Progress</span>
+                        <span>{progressPercentage}%</span>
+                      </div>
+                      <Progress
+                        value={progressPercentage}
+                        className="h-2"
+                      />
+                      <div className="text-xs text-gray-500">
+                        {course.completedChapters} of {course.chapters} chapters completed
+                      </div>
                     </div>
-                    <Progress
-                      value={(course.completedChapters / course.chapters) * 100}
-                      className="h-2"
-                    />
-                    <div className="text-xs text-gray-500">
-                      {course.completedChapters} of {course.chapters} chapters completed
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="border-t bg-gray-50 flex justify-between">
-                  <span className="text-xs text-gray-500">Last updated: {course.lastUpdated}</span>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={`/course/${course.id}`}>Continue</Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+                  </CardContent>
+                  <CardFooter className="border-t bg-gray-50 flex justify-between">
+                    <span className="text-xs text-gray-500">Last updated: {course.lastUpdated}</span>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to={`/course/${course.id}`}>Continue</Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
