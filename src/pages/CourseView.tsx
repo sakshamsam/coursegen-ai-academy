@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,7 +41,7 @@ interface CourseData {
 }
 
 const CourseView = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { id } = useParams();
   const [activeChapter, setActiveChapter] = useState(0);
   const [activeTab, setActiveTab] = useState("content");
@@ -67,7 +68,7 @@ const CourseView = () => {
     }
   }, [id]);
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
