@@ -12,15 +12,49 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
+import { Loader2 } from "lucide-react";
+
+// Define course types
+interface Resource {
+  type: 'video' | 'article';
+  title: string;
+  url: string;
+  description: string;
+}
+
+interface AssessmentQuestion {
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
+}
+
+interface Chapter {
+  title: string;
+  objectives: string[];
+  content: string;
+  summary: string;
+  resources: Resource[];
+  assessment?: AssessmentQuestion[];
+}
+
+interface CourseData {
+  courseTitle: string;
+  courseDescription: string;
+  proficiencyLevel: string;
+  chapters: Chapter[];
+}
 
 const CourseGenerator = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   
   const [currentStep, setCurrentStep] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState("");
 
   // Form state
   const [topic, setTopic] = useState("");
@@ -32,26 +66,56 @@ const CourseGenerator = () => {
   
   const handleGenerateCourse = async () => {
     setIsGenerating(true);
+    setGenerationProgress("Initializing course generation...");
     
     try {
-      // Simulate API call to generate course
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      setGenerationProgress("Connecting to AI service...");
+      
+      // Call the Supabase edge function to generate the course
+      const { data, error } = await supabase.functions.invoke('generate-course', {
+        body: {
+          topic,
+          description,
+          proficiency,
+          depth: depth[0],
+          chaptersCount: chaptersCount[0],
+          includeAssessments
+        }
+      });
+      
+      if (error) {
+        console.error("Error calling generate-course function:", error);
+        throw new Error(error.message || "Error generating course");
+      }
+      
+      if (!data.success) {
+        throw new Error(data.error || "Failed to generate course");
+      }
+      
+      // Store the generated course in localStorage for now
+      // In a real application, you would store this in a database
+      const courseData = data.course;
+      localStorage.setItem('generatedCourse', JSON.stringify(courseData));
       
       toast({
         title: "Course Generated Successfully!",
-        description: `Your course "${topic}" is ready to explore.`,
+        description: `Your course "${courseData.courseTitle || topic}" is ready to explore.`,
       });
       
       // Navigate to the newly created course (using a mock ID for now)
+      // In a real app, you would save to database and get the real ID
       navigate("/course/1");
     } catch (error) {
+      console.error("Course generation error:", error);
+      
       toast({
         title: "Error Generating Course",
-        description: "There was a problem generating your course. Please try again.",
+        description: error.message || "There was a problem generating your course. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsGenerating(false);
+      setGenerationProgress("");
     }
   };
 
@@ -307,10 +371,29 @@ const CourseGenerator = () => {
                 disabled={isGenerating}
                 className="bg-gradient-to-r from-coursegen-blue to-coursegen-purple hover:from-coursegen-blue/90 hover:to-coursegen-purple/90"
               >
-                {isGenerating ? "Generating..." : "Generate Course"}
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {generationProgress || "Generating..."}
+                  </>
+                ) : (
+                  "Generate Course"
+                )}
               </Button>
             )}
           </div>
+          
+          {isGenerating && (
+            <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <h3 className="text-blue-800 font-medium mb-2">
+                Generating Your Personalized Course
+              </h3>
+              <p className="text-blue-700 text-sm">
+                Our AI is creating your course content based on your specifications.
+                This may take a minute or two depending on the complexity of the topic.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

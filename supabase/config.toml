@@ -1,1 +1,5 @@
-project_id = "aphttittrodptrdvlntw"
+
+project_id = "project_id"
+
+[functions.generate-course]
+verify_jwt = true
