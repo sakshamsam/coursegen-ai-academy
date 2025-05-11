@@ -41,10 +41,10 @@ const Register = () => {
         description: "Welcome to CourseGen!",
       });
       navigate("/dashboard");
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Registration failed",
-        description: "Please check your details and try again.",
+        description: error.message || "Please check your details and try again.",
         variant: "destructive",
       });
     } finally {
