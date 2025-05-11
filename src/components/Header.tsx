@@ -42,7 +42,9 @@ const Header = () => {
 
         {user && (
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600">Hi, {user.name}</span>
+            <span className="text-sm text-gray-600">
+              Hi, {user.user_metadata?.name || user.email?.split('@')[0] || 'User'}
+            </span>
             <Button variant="outline" onClick={logout}>
               Logout
             </Button>
