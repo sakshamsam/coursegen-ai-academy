@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,19 +91,35 @@ const CourseGenerator = () => {
         throw new Error(data.error || "Failed to generate course");
       }
       
-      // Store the generated course in localStorage for now
-      // In a real application, you would store this in a database
       const courseData = data.course;
-      localStorage.setItem('generatedCourse', JSON.stringify(courseData));
+      
+      // Save the course to Supabase
+      const { data: courseRecord, error: dbError } = await supabase
+        .from('courses')
+        .insert([
+          {
+            user_id: user?.id,
+            title: courseData.courseTitle || topic,
+            description: courseData.courseDescription || description,
+            proficiency_level: proficiency,
+            course_data: courseData
+          }
+        ])
+        .select('id')
+        .single();
+      
+      if (dbError) {
+        console.error("Error saving course to database:", dbError);
+        throw new Error("Failed to save course");
+      }
       
       toast({
         title: "Course Generated Successfully!",
         description: `Your course "${courseData.courseTitle || topic}" is ready to explore.`,
       });
       
-      // Navigate to the newly created course (using a mock ID for now)
-      // In a real app, you would save to database and get the real ID
-      navigate("/course/1");
+      // Navigate to the course page with the actual ID
+      navigate(`/course/${courseRecord.id}`);
     } catch (error) {
       console.error("Course generation error:", error);
       

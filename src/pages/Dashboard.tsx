@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Navigate, Link, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,54 +6,105 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import Header from "@/components/Header";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface Course {
   id: string;
   title: string;
   description: string;
+  proficiency_level: string;
   chapters: number;
   completedChapters: number;
-  createdAt: string;
-  lastUpdated: string;
+  created_at: string;
+  updated_at: string;
 }
 
 const Dashboard = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [fetchingCourses, setFetchingCourses] = useState(true);
   const location = useLocation();
+  const { toast } = useToast();
 
   console.log("Dashboard: Auth state", { isAuthenticated, isLoading, user: user?.email });
 
   useEffect(() => {
-    // Mock data - In a real app, this would fetch from an API
-    if (isAuthenticated && user) {
-      console.log("Dashboard: Loading courses for authenticated user");
-      const mockCourses = [
-        {
-          id: "1",
-          title: "Introduction to Machine Learning",
-          description: "Learn the fundamentals of machine learning algorithms and applications.",
-          chapters: 10,
-          completedChapters: 4,
-          createdAt: "2023-05-10",
-          lastUpdated: "2023-05-15"
-        },
-        {
-          id: "2",
-          title: "Web Development Bootcamp",
-          description: "Master HTML, CSS, JavaScript and popular frameworks.",
-          chapters: 12,
-          completedChapters: 8,
-          createdAt: "2023-04-20",
-          lastUpdated: "2023-05-12"
+    const fetchCourses = async () => {
+      if (!isAuthenticated || !user) return;
+      
+      try {
+        setFetchingCourses(true);
+        console.log("Dashboard: Fetching courses for user", user.id);
+        
+        // Fetch courses from Supabase
+        const { data: coursesData, error } = await supabase
+          .from('courses')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          throw error;
         }
-      ];
-      setCourses(mockCourses);
-    }
-  }, [isAuthenticated, user]);
+        
+        if (!coursesData?.length) {
+          console.log("No courses found for user");
+          setCourses([]);
+          return;
+        }
+
+        // Fetch progress for each course
+        const processedCourses = await Promise.all(coursesData.map(async (course) => {
+          // Extract chapters from course_data
+          const courseData = course.course_data;
+          const chapterCount = courseData.chapters?.length || 0;
+          
+          // Fetch progress data for this course
+          const { data: progressData, error: progressError } = await supabase
+            .from('course_progress')
+            .select('*')
+            .eq('course_id', course.id)
+            .eq('user_id', user.id)
+            .eq('completed', true);
+          
+          if (progressError) {
+            console.error("Error fetching course progress:", progressError);
+          }
+          
+          const completedChaptersCount = progressData?.length || 0;
+          
+          return {
+            id: course.id,
+            title: course.title,
+            description: course.description,
+            proficiency_level: course.proficiency_level,
+            chapters: chapterCount,
+            completedChapters: completedChaptersCount,
+            created_at: new Date(course.created_at).toLocaleDateString(),
+            updated_at: new Date(course.updated_at).toLocaleDateString()
+          };
+        }));
+        
+        setCourses(processedCourses);
+        console.log("Fetched courses:", processedCourses);
+      } catch (error) {
+        console.error("Error fetching courses:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load courses. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setFetchingCourses(false);
+      }
+    };
+
+    fetchCourses();
+  }, [isAuthenticated, user, toast]);
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || fetchingCourses) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
@@ -79,14 +131,16 @@ const Dashboard = () => {
         {courses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map((course) => {
-              const progressPercentage = Math.round((course.completedChapters / course.chapters) * 100);
+              const progressPercentage = course.chapters > 0 
+                ? Math.round((course.completedChapters / course.chapters) * 100) 
+                : 0;
               
               return (
                 <Card key={course.id} className="bg-white overflow-hidden hover:shadow-md transition-shadow">
                   <CardHeader className="bg-gradient-to-r from-coursegen-blue to-coursegen-purple text-white">
                     <CardTitle className="truncate">{course.title}</CardTitle>
                     <CardDescription className="text-gray-100">
-                      Created on {course.createdAt}
+                      Created on {course.created_at}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-6">
@@ -106,7 +160,7 @@ const Dashboard = () => {
                     </div>
                   </CardContent>
                   <CardFooter className="border-t bg-gray-50 flex justify-between">
-                    <span className="text-xs text-gray-500">Last updated: {course.lastUpdated}</span>
+                    <span className="text-xs text-gray-500">Last updated: {course.updated_at}</span>
                     <Button variant="outline" size="sm" asChild>
                       <Link to={`/course/${course.id}`}>Continue</Link>
                     </Button>

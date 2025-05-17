@@ -9,6 +9,77 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      course_progress: {
+        Row: {
+          chapter_index: number
+          completed: boolean
+          course_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chapter_index: number
+          completed?: boolean
+          course_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chapter_index?: number
+          completed?: boolean
+          course_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_progress_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          course_data: Json
+          created_at: string
+          description: string
+          id: string
+          proficiency_level: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          course_data: Json
+          created_at?: string
+          description: string
+          id?: string
+          proficiency_level: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          course_data?: Json
+          created_at?: string
+          description?: string
+          id?: string
+          proficiency_level?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

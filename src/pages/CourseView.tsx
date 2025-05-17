@@ -1,15 +1,31 @@
 
 import { useState, useEffect } from "react";
-import { useParams, Navigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import Header from "@/components/Header";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useParams, Navigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ExternalLink, CheckCircle, Youtube, Globe, BookOpen } from "lucide-react";
+import { 
+  Accordion, 
+  AccordionContent, 
+  AccordionItem, 
+  AccordionTrigger 
+} from "@/components/ui/accordion";
+import { 
+  Check, 
+  ChevronLeft, 
+  ChevronRight, 
+  FileText, 
+  List, 
+  Loader2, 
+  Video, 
+  BookOpenCheck
+} from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import Header from "@/components/Header";
 
-// Use the types from CourseGenerator.tsx
 interface Resource {
   type: 'video' | 'article';
   title: string;
@@ -33,255 +49,404 @@ interface Chapter {
   assessment?: AssessmentQuestion[];
 }
 
-interface CourseData {
-  courseTitle: string;
-  courseDescription: string;
-  proficiencyLevel: string;
+interface Course {
+  id: string;
+  title: string;
+  description: string;
   chapters: Chapter[];
+  proficiencyLevel: string;
 }
 
 const CourseView = () => {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { id } = useParams();
-  const [activeChapter, setActiveChapter] = useState(0);
-  const [activeTab, setActiveTab] = useState("content");
-  const [courseData, setCourseData] = useState<CourseData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { id } = useParams<{ id: string }>();
+  const [course, setCourse] = useState<Course | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentChapter, setCurrentChapter] = useState(0);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [completedChapters, setCompletedChapters] = useState<Record<number, boolean>>({});
+  const [isSavingProgress, setIsSavingProgress] = useState(false);
+  const { toast } = useToast();
+  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
-    // In a real app, you would fetch course data from the database
-    // For now, we're using localStorage as a temporary data store
-    try {
-      const savedCourse = localStorage.getItem('generatedCourse');
-      if (savedCourse) {
-        setCourseData(JSON.parse(savedCourse));
-      } else {
-        // Fallback for testing if no course is generated yet
-        setError("Course not found. Please generate a course first.");
+    const fetchCourse = async () => {
+      if (!id || !isAuthenticated || !user) return;
+      
+      try {
+        setLoading(true);
+        
+        // Fetch course from database
+        const { data: courseData, error: courseError } = await supabase
+          .from("courses")
+          .select("*")
+          .eq("id", id)
+          .single();
+        
+        if (courseError || !courseData) {
+          console.error("Error fetching course:", courseError);
+          toast({
+            title: "Error",
+            description: "Failed to load course. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Format course data
+        const formattedCourse: Course = {
+          id: courseData.id,
+          title: courseData.title,
+          description: courseData.description,
+          proficiencyLevel: courseData.proficiency_level,
+          chapters: courseData.course_data.chapters || []
+        };
+        
+        setCourse(formattedCourse);
+
+        // Fetch completed chapters from course_progress
+        const { data: progressData, error: progressError } = await supabase
+          .from("course_progress")
+          .select("*")
+          .eq("course_id", id)
+          .eq("user_id", user.id);
+        
+        if (progressError) {
+          console.error("Error fetching course progress:", progressError);
+        } else {
+          const completedMap = progressData.reduce((acc, progress) => {
+            if (progress.completed) {
+              acc[progress.chapter_index] = true;
+            }
+            return acc;
+          }, {} as Record<number, boolean>);
+          
+          setCompletedChapters(completedMap);
+        }
+      } catch (error) {
+        console.error("Error in fetchCourse:", error);
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred while loading the course.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Error loading course data:", err);
-      setError("Failed to load course data.");
+    };
+
+    fetchCourse();
+  }, [id, isAuthenticated, user, toast]);
+
+  const handleMarkComplete = async () => {
+    if (!course || !user || !isAuthenticated) return;
+    
+    try {
+      setIsSavingProgress(true);
+      
+      // Save progress to database
+      const { error } = await supabase
+        .from("course_progress")
+        .upsert({
+          user_id: user.id,
+          course_id: id!,
+          chapter_index: currentChapter,
+          completed: true,
+          updated_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      setCompletedChapters(prev => ({
+        ...prev,
+        [currentChapter]: true
+      }));
+      
+      toast({
+        title: "Progress Saved",
+        description: "Chapter marked as complete!",
+      });
+      
+      // Move to next chapter if there is one
+      if (course.chapters && currentChapter < course.chapters.length - 1) {
+        setCurrentChapter(currentChapter + 1);
+      }
+    } catch (error) {
+      console.error("Error marking chapter as complete:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save your progress. Please try again.",
+        variant: "destructive",
+      });
     } finally {
-      setIsLoading(false);
+      setIsSavingProgress(false);
     }
-  }, [id]);
+  };
 
-  if (authLoading || isLoading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
-  }
+  // Functions to navigate between chapters
+  const nextChapter = () => {
+    if (course?.chapters && currentChapter < course.chapters.length - 1) {
+      setCurrentChapter(currentChapter + 1);
+      window.scrollTo(0, 0);
+    }
+  };
 
+  const prevChapter = () => {
+    if (currentChapter > 0) {
+      setCurrentChapter(currentChapter - 1);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  // Redirect if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
 
-  if (error) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex flex-col bg-gray-50">
+      <div className="min-h-screen flex flex-col">
         <Header />
-        <div className="flex-1 container mx-auto px-4 py-8">
-          <div className="max-w-4xl mx-auto text-center mt-20">
-            <h1 className="text-2xl font-bold mb-4">{error}</h1>
-            <Button onClick={() => window.location.href = "/course-generator"}>
-              Create a Course
-            </Button>
-          </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2">Loading course...</span>
         </div>
       </div>
     );
   }
 
-  if (!courseData) {
-    return <div className="flex items-center justify-center h-screen">Loading course data...</div>;
+  if (!course) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <h1 className="text-2xl font-bold mb-2">Course Not Found</h1>
+          <p className="text-gray-500 mb-6">The course you're looking for doesn't exist or you don't have permission to view it.</p>
+          <Button asChild>
+            <Link to="/dashboard">Return to Dashboard</Link>
+          </Button>
+        </div>
+      </div>
+    );
   }
 
-  const currentChapter = courseData.chapters[activeChapter];
+  const chapter = course.chapters[currentChapter];
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
-      <div className="flex-1 container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl">Course Content</CardTitle>
-                <CardDescription>
-                  {courseData.proficiencyLevel.charAt(0).toUpperCase() + courseData.proficiencyLevel.slice(1)} Level
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <div className="space-y-1">
-                  {courseData.chapters.map((chapter, index) => (
-                    <Button
-                      key={index}
-                      variant={activeChapter === index ? "default" : "ghost"}
-                      className="w-full justify-start text-left"
-                      onClick={() => {
-                        setActiveChapter(index);
-                        setActiveTab("content");
-                      }}
-                    >
-                      <span className="truncate">
-                        {index + 1}. {chapter.title}
+      
+      <div className="container mx-auto px-4 py-6 flex-1 flex flex-col md:flex-row gap-6">
+        {/* Sidebar - Chapter List */}
+        <div className={`${showSidebar ? 'block' : 'hidden'} md:block w-full md:w-80 lg:w-96 flex-shrink-0`}>
+          <div className="sticky top-20 bg-white rounded-lg shadow-sm p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Chapters</h2>
+              <Button variant="outline" size="icon" className="md:hidden" onClick={() => setShowSidebar(false)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+              {course.chapters.map((chapter, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Button 
+                    variant={currentChapter === idx ? "default" : "ghost"} 
+                    className={`w-full justify-start ${completedChapters[idx] ? 'text-green-700' : ''}`}
+                    onClick={() => setCurrentChapter(idx)}
+                  >
+                    {completedChapters[idx] ? (
+                      <Check className="h-4 w-4 mr-2 text-green-500" />
+                    ) : (
+                      <span className="h-4 w-4 mr-2 inline-flex items-center justify-center text-xs font-semibold">
+                        {idx + 1}
                       </span>
-                    </Button>
-                  ))}
+                    )}
+                    <span className="truncate">{chapter.title}</span>
+                  </Button>
                 </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* Main Content */}
+        <div className="flex-1 min-w-0">
+          {!showSidebar && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="md:hidden mb-4" 
+              onClick={() => setShowSidebar(true)}
+            >
+              <List className="h-4 w-4 mr-2" />
+              Show Chapters
+            </Button>
+          )}
+          
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
+              <div>
+                <h1 className="text-2xl font-bold">{chapter.title}</h1>
+                <p className="text-gray-500">Chapter {currentChapter + 1} of {course.chapters.length}</p>
+              </div>
+              
+              <div className="mt-4 sm:mt-0 flex items-center">
+                {completedChapters[currentChapter] ? (
+                  <span className="inline-flex items-center text-green-600 mr-4">
+                    <Check className="h-5 w-5 mr-1" />
+                    Completed
+                  </span>
+                ) : (
+                  <Button 
+                    onClick={handleMarkComplete} 
+                    className="mr-4"
+                    disabled={isSavingProgress}
+                  >
+                    {isSavingProgress ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <BookOpenCheck className="mr-2 h-4 w-4" />
+                    )}
+                    Mark Complete
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            {/* Objectives */}
+            <Card className="mb-6">
+              <CardContent className="p-4">
+                <h2 className="text-lg font-semibold mb-2">Learning Objectives</h2>
+                <ul className="list-disc pl-5 space-y-1">
+                  {chapter.objectives.map((objective, idx) => (
+                    <li key={idx} className="text-gray-600">{objective}</li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-2xl mb-1">{courseData.courseTitle}</CardTitle>
-                    <CardDescription className="text-base">
-                      {courseData.courseDescription}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold mb-2">
-                    Chapter {activeChapter + 1}: {currentChapter.title}
-                  </h2>
-                  
-                  <div className="mb-6">
-                    <h3 className="text-md font-medium mb-2">Learning Objectives:</h3>
-                    <ul className="space-y-1">
-                      {currentChapter.objectives.map((objective, i) => (
-                        <li key={i} className="flex items-start">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-1 flex-shrink-0" />
-                          <span>{objective}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid grid-cols-3 mb-4">
-                      <TabsTrigger value="content">Content</TabsTrigger>
-                      <TabsTrigger value="resources">Resources</TabsTrigger>
-                      {currentChapter.assessment && (
-                        <TabsTrigger value="assessment">Assessment</TabsTrigger>
-                      )}
-                    </TabsList>
-                    
-                    <TabsContent value="content" className="mt-0">
-                      <div className="prose max-w-none">
-                        <div className="whitespace-pre-line">
-                          {currentChapter.content}
-                        </div>
-                        
-                        <h3 className="font-semibold text-lg mt-6 mb-2">Summary</h3>
-                        <div className="bg-blue-50 p-4 rounded-md">
-                          {currentChapter.summary}
-                        </div>
-                      </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="resources" className="mt-0">
-                      <div className="grid gap-4">
-                        {currentChapter.resources.map((resource, i) => (
-                          <Card key={i}>
-                            <CardContent className="p-4">
-                              <div className="flex items-start">
-                                {resource.type === "video" ? (
-                                  <Youtube className="h-5 w-5 mr-2 text-red-600 mt-1 flex-shrink-0" />
-                                ) : (
-                                  <Globe className="h-5 w-5 mr-2 text-blue-600 mt-1 flex-shrink-0" />
-                                )}
-                                <div>
-                                  <h3 className="font-medium flex items-center">
-                                    {resource.title}
-                                    <a
-                                      href={resource.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 ml-2 inline-flex items-center"
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                  </h3>
-                                  <p className="text-sm text-gray-600 mt-1">
-                                    {resource.description}
-                                  </p>
+            
+            {/* Content */}
+            <div className="prose max-w-none mb-8">
+              {chapter.content.split('\n\n').map((paragraph, idx) => (
+                <p key={idx} className="mb-4">{paragraph}</p>
+              ))}
+            </div>
+            
+            {/* Summary */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-8">
+              <h2 className="text-lg font-semibold mb-2">Summary</h2>
+              <p>{chapter.summary}</p>
+            </div>
+            
+            {/* Resources */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold mb-4">Additional Resources</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {chapter.resources.map((resource, idx) => (
+                  <a 
+                    key={idx} 
+                    href={resource.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-white border rounded-lg p-4 hover:border-primary hover:shadow-md transition-all flex items-start"
+                  >
+                    {resource.type === 'video' ? (
+                      <Video className="h-5 w-5 text-blue-500 mr-2 mt-0.5" />
+                    ) : (
+                      <FileText className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
+                    )}
+                    <div>
+                      <h3 className="font-medium">{resource.title}</h3>
+                      <p className="text-sm text-gray-600">{resource.description}</p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+            
+            {/* Assessment */}
+            {chapter.assessment && (
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold mb-4">Knowledge Check</h2>
+                <Accordion type="single" collapsible className="w-full">
+                  {chapter.assessment.map((question, qIdx) => (
+                    <AccordionItem key={qIdx} value={`question-${qIdx}`}>
+                      <AccordionTrigger className="text-left">
+                        {question.question}
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            {question.options.map((option, oIdx) => (
+                              <div 
+                                key={oIdx} 
+                                className={`p-3 rounded-md border ${
+                                  oIdx === question.correctAnswer 
+                                    ? 'border-green-300 bg-green-50' 
+                                    : 'border-gray-200'
+                                }`}
+                              >
+                                <div className="flex items-start">
+                                  <span className="font-medium mr-2">{String.fromCharCode(65 + oIdx)}.</span>
+                                  <span>{option}</span>
+                                  {oIdx === question.correctAnswer && (
+                                    <Check className="ml-auto h-5 w-5 text-green-500" />
+                                  )}
                                 </div>
                               </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </TabsContent>
-                    
-                    {currentChapter.assessment && (
-                      <TabsContent value="assessment" className="mt-0">
-                        <div className="space-y-6">
-                          {currentChapter.assessment.map((question, i) => (
-                            <div key={i} className="bg-white p-4 rounded-md border">
-                              <h3 className="font-medium mb-3">Question {i + 1}: {question.question}</h3>
-                              
-                              <div className="space-y-2 mb-4">
-                                {question.options.map((option, j) => (
-                                  <div
-                                    key={j}
-                                    className={`p-2 rounded-md border ${
-                                      j === question.correctAnswer
-                                        ? "bg-green-50 border-green-200"
-                                        : "bg-white"
-                                    }`}
-                                  >
-                                    <div className="flex items-start">
-                                      <span className="font-medium mr-2">{String.fromCharCode(65 + j)}.</span>
-                                      <span>{option}</span>
-                                      {j === question.correctAnswer && (
-                                        <CheckCircle className="h-4 w-4 text-green-600 ml-auto flex-shrink-0" />
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              
-                              <div className="mt-2">
-                                <h4 className="font-medium text-sm">Explanation:</h4>
-                                <p className="text-sm">{question.explanation}</p>
-                              </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                          <Separator />
+                          <div>
+                            <h4 className="font-medium mb-2">Explanation</h4>
+                            <p className="text-gray-600">{question.explanation}</p>
+                          </div>
                         </div>
-                      </TabsContent>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
+            )}
+            
+            {/* Navigation Buttons */}
+            <div className="flex justify-between pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={prevChapter} 
+                disabled={currentChapter === 0}
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Previous Chapter
+              </Button>
+              
+              <div className="flex gap-2">
+                {!completedChapters[currentChapter] && (
+                  <Button 
+                    onClick={handleMarkComplete}
+                    disabled={isSavingProgress}
+                  >
+                    {isSavingProgress ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <BookOpenCheck className="mr-2 h-4 w-4" />
                     )}
-                  </Tabs>
-                </div>
-                
-                <Separator className="my-6" />
-                
-                {/* Navigation buttons */}
-                <div className="flex justify-between">
-                  <Button
-                    variant="outline"
-                    disabled={activeChapter === 0}
-                    onClick={() => setActiveChapter(prev => Math.max(prev - 1, 0))}
-                  >
-                    Previous Chapter
+                    Complete
                   </Button>
-                  
-                  <Button
-                    disabled={activeChapter >= courseData.chapters.length - 1}
-                    onClick={() => setActiveChapter(prev => Math.min(prev + 1, courseData.chapters.length - 1))}
-                  >
-                    Next Chapter
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                )}
+                
+                <Button 
+                  onClick={nextChapter} 
+                  disabled={currentChapter === course.chapters.length - 1}
+                >
+                  Next Chapter
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
