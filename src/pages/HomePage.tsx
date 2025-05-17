@@ -2,8 +2,12 @@
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const HomePage = () => {
+  const { isAuthenticated } = useAuth();
+  
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -20,21 +24,35 @@ const HomePage = () => {
               proficiency level, and learning goals.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                size="lg"
-                className="bg-white text-coursegen-purple hover:bg-gray-100"
-                asChild
-              >
-                <Link to="/register">Get Started</Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-white text-coursegen-purple hover:bg-white/10 hover:text-white"
-                asChild
-              >
-                <Link to="/login">Login</Link>
-              </Button>
+              {!isAuthenticated ? (
+                <>
+                  <Button
+                    size="lg"
+                    className="bg-white text-coursegen-purple hover:bg-gray-100"
+                    asChild
+                  >
+                    <Link to="/register">Get Started</Link>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-white text-white hover:bg-white/10 hover:text-white"
+                    asChild
+                  >
+                    <Link to="/login">Login</Link>
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="lg"
+                  className="bg-white text-coursegen-purple hover:bg-gray-100 flex items-center gap-2"
+                  asChild
+                >
+                  <Link to="/dashboard">
+                    Go to Dashboard <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -46,7 +64,7 @@ const HomePage = () => {
           <h2 className="text-3xl font-bold text-center mb-12">Why Choose CourseGen?</h2>
           
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-gray-50 p-6 rounded-lg shadow-sm">
+            <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
               <div className="h-12 w-12 bg-coursegen-blue/20 text-coursegen-blue flex items-center justify-center rounded-full mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
                   <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2h11A2.5 2.5 0 0 1 20 4.5v15a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 19.5z"></path>
@@ -61,7 +79,7 @@ const HomePage = () => {
               </p>
             </div>
             
-            <div className="bg-gray-50 p-6 rounded-lg shadow-sm">
+            <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
               <div className="h-12 w-12 bg-coursegen-purple/20 text-coursegen-purple flex items-center justify-center rounded-full mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
                   <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"></path>
@@ -75,7 +93,7 @@ const HomePage = () => {
               </p>
             </div>
             
-            <div className="bg-gray-50 p-6 rounded-lg shadow-sm">
+            <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
               <div className="h-12 w-12 bg-coursegen-blue/20 text-coursegen-blue flex items-center justify-center rounded-full mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
                   <path d="M20 7h-9"></path>
@@ -160,13 +178,25 @@ const HomePage = () => {
           <p className="text-xl mb-8 opacity-90 max-w-2xl mx-auto">
             Create your personalized learning experience today with CourseGen's AI-powered platform.
           </p>
-          <Button
-            size="lg"
-            className="bg-white text-coursegen-purple hover:bg-gray-100"
-            asChild
-          >
-            <Link to="/register">Create Your First Course</Link>
-          </Button>
+          {!isAuthenticated ? (
+            <Button
+              size="lg"
+              className="bg-white text-coursegen-purple hover:bg-gray-100"
+              asChild
+            >
+              <Link to="/register">Create Your First Course</Link>
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              className="bg-white text-coursegen-purple hover:bg-gray-100 flex items-center gap-2"
+              asChild
+            >
+              <Link to="/course-generator">
+                Create a New Course <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
         </div>
       </section>
       
@@ -184,8 +214,17 @@ const HomePage = () => {
               <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
               <ul className="space-y-2">
                 <li><Link to="/" className="text-gray-400 hover:text-white">Home</Link></li>
-                <li><Link to="/login" className="text-gray-400 hover:text-white">Login</Link></li>
-                <li><Link to="/register" className="text-gray-400 hover:text-white">Register</Link></li>
+                {!isAuthenticated ? (
+                  <>
+                    <li><Link to="/login" className="text-gray-400 hover:text-white">Login</Link></li>
+                    <li><Link to="/register" className="text-gray-400 hover:text-white">Register</Link></li>
+                  </>
+                ) : (
+                  <>
+                    <li><Link to="/dashboard" className="text-gray-400 hover:text-white">Dashboard</Link></li>
+                    <li><Link to="/course-generator" className="text-gray-400 hover:text-white">Create Course</Link></li>
+                  </>
+                )}
               </ul>
             </div>
           </div>
