@@ -58,7 +58,13 @@ const Dashboard = () => {
         const processedCourses = await Promise.all(coursesData.map(async (course) => {
           // Extract chapters from course_data
           const courseData = course.course_data;
-          const chapterCount = courseData.chapters?.length || 0;
+          // Safely handle the course_data structure
+          const courseDataObj = typeof courseData === 'string' 
+            ? JSON.parse(courseData) 
+            : courseData;
+          
+          // Check if chapters exists, if not default to 0
+          const chapterCount = courseDataObj?.chapters?.length || 0;
           
           // Fetch progress data for this course
           const { data: progressData, error: progressError } = await supabase

@@ -92,13 +92,21 @@ const CourseView = () => {
           return;
         }
         
+        // Safely parse course_data
+        let parsedCourseData;
+        if (typeof courseData.course_data === 'string') {
+          parsedCourseData = JSON.parse(courseData.course_data);
+        } else {
+          parsedCourseData = courseData.course_data;
+        }
+        
         // Format course data
         const formattedCourse: Course = {
           id: courseData.id,
           title: courseData.title,
           description: courseData.description,
           proficiencyLevel: courseData.proficiency_level,
-          chapters: courseData.course_data.chapters || []
+          chapters: parsedCourseData.chapters || []
         };
         
         setCourse(formattedCourse);
