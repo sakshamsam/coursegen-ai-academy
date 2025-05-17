@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from "react";
-import { Navigate, Link } from "react-router-dom";
+import { Navigate, Link, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -20,10 +19,14 @@ interface Course {
 const Dashboard = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
+  const location = useLocation();
+
+  console.log("Dashboard: Auth state", { isAuthenticated, isLoading, user: user?.email });
 
   useEffect(() => {
     // Mock data - In a real app, this would fetch from an API
-    if (isAuthenticated) {
+    if (isAuthenticated && user) {
+      console.log("Dashboard: Loading courses for authenticated user");
       const mockCourses = [
         {
           id: "1",
@@ -46,15 +49,17 @@ const Dashboard = () => {
       ];
       setCourses(mockCourses);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
-  // Redirect if not authenticated
+  // Loading state
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
+  // Not authenticated state - redirect to login with current location as state
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    console.log("Dashboard: User not authenticated, redirecting to login");
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
   return (

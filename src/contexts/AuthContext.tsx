@@ -33,23 +33,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Set up the auth state listener
+    console.log("AuthProvider: Setting up auth state listener");
+    
+    // Set up the auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
+        console.log("Auth state changed:", event, newSession?.user?.email);
         setSession(newSession);
         setUser(newSession?.user ?? null);
         setIsLoading(false);
       }
     );
 
-    // Check for existing session
+    // Then check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      console.log("Initial session check:", currentSession?.user?.email);
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       setIsLoading(false);
     });
 
     return () => {
+      console.log("AuthProvider: Cleaning up auth state listener");
       subscription.unsubscribe();
     };
   }, []);
@@ -57,12 +62,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
+      console.log("Attempting login for:", email);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
+      console.log("Login successful");
     } catch (error) {
       console.error("Login failed:", error);
       throw error;
@@ -74,6 +81,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const register = async (name: string, email: string, password: string) => {
     setIsLoading(true);
     try {
+      console.log("Attempting registration for:", email);
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -85,6 +93,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (error) throw error;
+      console.log("Registration successful");
     } catch (error) {
       console.error("Registration failed:", error);
       throw error;
@@ -95,12 +104,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const logout = async () => {
     try {
+      console.log("Attempting logout");
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
       // Clear local state
       setUser(null);
       setSession(null);
+      console.log("Logout successful");
     } catch (error) {
       console.error("Logout failed:", error);
       throw error;
