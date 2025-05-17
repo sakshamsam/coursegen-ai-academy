@@ -30,7 +30,7 @@ const HomePage = () => {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white text-white hover:bg-white/10 hover:text-white"
+                className="border-white text-coursegen-purple hover:bg-white/10 hover:text-white"
                 asChild
               >
                 <Link to="/login">Login</Link>
