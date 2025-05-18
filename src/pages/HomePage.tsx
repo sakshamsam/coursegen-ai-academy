@@ -36,7 +36,7 @@ const HomePage = () => {
                   <Button
                     size="lg"
                     variant="outline"
-                    className="border-white text-white hover:bg-white/10 hover:text-white"
+                    className="bg-white text-coursegen-purple hover:bg-gray-100"
                     asChild
                   >
                     <Link to="/login" className="text-white">Login</Link>
