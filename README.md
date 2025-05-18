@@ -1,4 +1,4 @@
-# **AI Course Generator **🎓
+# AI Course Generator 🎓
 A personalized learning platform powered by artificial intelligence
 
 📚 **About**
