@@ -39,7 +39,7 @@ const HomePage = () => {
                     className="border-white text-white hover:bg-white/10 hover:text-white"
                     asChild
                   >
-                    <Link to="/login">Login</Link>
+                    <Link to="/login" className="text-white">Login</Link>
                   </Button>
                 </>
               ) : (
